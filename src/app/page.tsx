@@ -45,7 +45,7 @@ export default function Page() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     system_prompt:
-                        "Bạn là một trợ lý AI hữu ích, thân thiện và chính xác. Trả lời bằng tiếng Việt.",
+                        "Bạn là một trợ lý AI hữu ích, thân thiện và chính xác. Trả lời bằng tiếng Việt, mỗi ý một dòng rõ ràng, không dùng markdown.",
                     user_prompt: userMessage.content,
                 }),
             });
@@ -130,30 +130,42 @@ export default function Page() {
                         messages.map((msg, i) => (
                             <div
                                 key={i}
-                                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
-                                    }`}
+                                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                             >
-                                <div
-                                    className={`px-4 py-3 rounded-2xl max-w-[80%] whitespace-pre-wrap leading-relaxed shadow-sm ${msg.role === "user"
-                                            ? "bg-blue-600 text-white"
-                                            : "bg-gray-100 text-gray-900"
-                                        }`}
-                                >
-                                    {msg.content ||
-                                        (isLoading && msg.role === "assistant" ? (
-                                            <span className="flex gap-1">
-                                                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
-                                                <span
-                                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                                    style={{ animationDelay: "0.1s" }}
-                                                ></span>
-                                                <span
-                                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                                    style={{ animationDelay: "0.2s" }}
-                                                ></span>
-                                            </span>
-                                        ) : null)}
-                                </div>
+                                {msg.role === "user" ? (
+                                    <div className="px-4 py-3 rounded-2xl max-w-[80%] bg-blue-600 text-white whitespace-pre-wrap leading-relaxed shadow-sm">
+                                        {msg.content}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-3 max-w-[80%]">
+                                        {msg.content
+                                            .split("\n")
+                                            .filter((line) => line.trim())
+                                            .map((line, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="px-4 py-3 rounded-xl bg-gray-100 text-gray-900 shadow-sm"
+                                                >
+                                                    {line}
+                                                </div>
+                                            ))}
+                                        {isLoading && msg.content === "" && (
+                                            <div className="px-4 py-3 rounded-xl bg-gray-100 text-gray-500 shadow-sm">
+                                                <span className="flex gap-1">
+                                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                                                    <span
+                                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                                        style={{ animationDelay: "0.1s" }}
+                                                    ></span>
+                                                    <span
+                                                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                                        style={{ animationDelay: "0.2s" }}
+                                                    ></span>
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))
                     )}
@@ -179,8 +191,8 @@ export default function Page() {
                             onClick={sendMessage}
                             disabled={!input.trim() || isLoading}
                             className={`absolute right-2 bottom-2 w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${!input.trim() || isLoading
-                                    ? "text-gray-400 cursor-not-allowed"
-                                    : "text-blue-600 hover:bg-blue-50"
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-blue-600 hover:bg-blue-50"
                                 }`}
                         >
                             {isLoading ? (
