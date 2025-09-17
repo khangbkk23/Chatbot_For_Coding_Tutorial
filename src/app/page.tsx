@@ -1,103 +1,212 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useState, useRef, useEffect } from "react";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+interface Message {
+    role: "user" | "assistant";
+    content: string;
+}
+
+export default function Page() {
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Scroll xuống cuối khi có tin nhắn mới
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    // Auto-resize textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height =
+                Math.min(textareaRef.current.scrollHeight, 200) + "px";
+        }
+    }, [input]);
+
+    const sendMessage = async () => {
+        if (!input.trim() || isLoading) return;
+
+        const userMessage: Message = { role: "user", content: input.trim() };
+        setMessages((prev) => [...prev, userMessage]);
+        setInput("");
+        setIsLoading(true);
+
+        // Placeholder assistant
+        setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+        try {
+            const res = await fetch("/api/stream", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    system_prompt:
+                        "Bạn là một trợ lý AI hữu ích, thân thiện và chính xác. Trả lời bằng tiếng Việt.",
+                    user_prompt: userMessage.content,
+                }),
+            });
+
+            if (!res.body) throw new Error("No response body");
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                fullContent += chunk;
+
+                setMessages((prev) => {
+                    const newMessages = [...prev];
+                    newMessages[newMessages.length - 1] = {
+                        role: "assistant",
+                        content: fullContent,
+                    };
+                    return newMessages;
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            setMessages((prev) => {
+                const newMessages = [...prev];
+                newMessages[newMessages.length - 1] = {
+                    role: "assistant",
+                    content: "❌ Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại.",
+                };
+                return newMessages;
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-screen bg-white">
+            {/* Header */}
+            <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+                <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+                    <h1 className="text-lg font-semibold text-gray-900">🤖 Kelvin AI</h1>
+                    {messages.length > 0 && (
+                        <button
+                            onClick={() => setMessages([])}
+                            className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1 rounded-md hover:bg-gray-100"
+                        >
+                            + Cuộc trò chuyện mới
+                        </button>
+                    )}
+                </div>
+            </header>
+
+            {/* Messages */}
+            <main className="flex-1 overflow-y-auto">
+                <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+                    {messages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center text-gray-600">
+                            <div className="text-4xl mb-4">🤝</div>
+                            <h2 className="text-xl font-semibold mb-2">
+                                Chào bạn, tôi là Kelvin
+                            </h2>
+                            <p className="text-gray-500 max-w-md">
+                                Tôi có thể hỗ trợ bạn với nhiều nhiệm vụ: trả lời câu hỏi, viết
+                                lách, phân tích, và nhiều hơn nữa. Bắt đầu bằng cách nhập câu
+                                hỏi bên dưới 👇
+                            </p>
+                        </div>
+                    ) : (
+                        messages.map((msg, i) => (
+                            <div
+                                key={i}
+                                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
+                                    }`}
+                            >
+                                <div
+                                    className={`px-4 py-3 rounded-2xl max-w-[80%] whitespace-pre-wrap leading-relaxed shadow-sm ${msg.role === "user"
+                                            ? "bg-blue-600 text-white"
+                                            : "bg-gray-100 text-gray-900"
+                                        }`}
+                                >
+                                    {msg.content ||
+                                        (isLoading && msg.role === "assistant" ? (
+                                            <span className="flex gap-1">
+                                                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                                                <span
+                                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                                    style={{ animationDelay: "0.1s" }}
+                                                ></span>
+                                                <span
+                                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                                    style={{ animationDelay: "0.2s" }}
+                                                ></span>
+                                            </span>
+                                        ) : null)}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
+            </main>
+
+            {/* Input */}
+            <footer className="border-t border-gray-200 bg-white">
+                <div className="max-w-3xl mx-auto p-4">
+                    <div className="relative flex items-end">
+                        <textarea
+                            ref={textareaRef}
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Nhập tin nhắn..."
+                            className="w-full resize-none border border-gray-300 rounded-2xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500 min-h-[52px] max-h-[200px]"
+                            rows={1}
+                            disabled={isLoading}
+                        />
+                        <button
+                            onClick={sendMessage}
+                            disabled={!input.trim() || isLoading}
+                            className={`absolute right-2 bottom-2 w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${!input.trim() || isLoading
+                                    ? "text-gray-400 cursor-not-allowed"
+                                    : "text-blue-600 hover:bg-blue-50"
+                                }`}
+                        >
+                            {isLoading ? (
+                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <path d="M22 2L11 13" />
+                                    <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                                </svg>
+                            )}
+                        </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                        Nhấn <kbd>Enter</kbd> để gửi, <kbd>Shift + Enter</kbd> để xuống dòng
+                    </p>
+                </div>
+            </footer>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+    );
 }
